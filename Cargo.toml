@@ -1,0 +1,12 @@
+[package]
+name = "recipe-scale"
+version = "0.1.0"
+edition = "2021"
+description = "Scale recipe ingredient quantities to a target serving count."
+license = "MIT"
+
+[[bin]]
+name = "recipe-scale"
+path = "src/main.rs"
+
+[dependencies]

@@ -105,3 +105,137 @@ impl fmt::Display for Quantity {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_reduces_to_lowest_terms() {
+        let q = Quantity::new(4, 8);
+        assert_eq!(q, Quantity::new(1, 2));
+        assert_eq!(q.num, 1);
+        assert_eq!(q.den, 2);
+    }
+
+    #[test]
+    fn new_normalizes_negative_denominator() {
+        let q = Quantity::new(1, -2);
+        assert_eq!(q.num, -1);
+        assert_eq!(q.den, 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "denominator cannot be zero")]
+    fn new_rejects_zero_denominator() {
+        Quantity::new(1, 0);
+    }
+
+    #[test]
+    fn whole_is_denominator_one() {
+        let q = Quantity::whole(3);
+        assert_eq!(q, Quantity::new(3, 1));
+    }
+
+    #[test]
+    fn scaled_by_multiplies_and_reduces() {
+        // 1 1/2 (3/2) scaled by 3/2 is 2 1/4 (9/4), matching the README example.
+        let onehalf = Quantity::new(3, 2);
+        let factor = Quantity::new(3, 2);
+        assert_eq!(onehalf.scaled_by(factor), Quantity::new(9, 4));
+    }
+
+    #[test]
+    fn scaled_by_is_exact_over_repeated_applications() {
+        // Scaling down then back up by the reciprocal should land exactly
+        // on the original value, not something off by float error.
+        let start = Quantity::new(1, 3);
+        let down = start.scaled_by(Quantity::new(1, 7));
+        let back = down.scaled_by(Quantity::new(7, 1));
+        assert_eq!(back, start);
+    }
+
+    #[test]
+    fn as_f64_converts() {
+        assert_eq!(Quantity::new(1, 4).as_f64(), 0.25);
+        assert_eq!(Quantity::new(3, 2).as_f64(), 1.5);
+    }
+
+    #[test]
+    fn parse_tokens_whole_number() {
+        let (q, consumed) = Quantity::parse_tokens(&["3", "eggs"]).unwrap();
+        assert_eq!(q, Quantity::whole(3));
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn parse_tokens_decimal() {
+        let (q, consumed) = Quantity::parse_tokens(&["0.5", "tsp"]).unwrap();
+        assert_eq!(q, Quantity::new(1, 2));
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn parse_tokens_multi_digit_decimal() {
+        let (q, _) = Quantity::parse_tokens(&["1.25"]).unwrap();
+        assert_eq!(q, Quantity::new(5, 4));
+    }
+
+    #[test]
+    fn parse_tokens_simple_fraction() {
+        let (q, consumed) = Quantity::parse_tokens(&["1/2", "cup"]).unwrap();
+        assert_eq!(q, Quantity::new(1, 2));
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn parse_tokens_mixed_number_consumes_two_tokens() {
+        let (q, consumed) = Quantity::parse_tokens(&["1", "1/2", "cups", "milk"]).unwrap();
+        assert_eq!(q, Quantity::new(3, 2));
+        assert_eq!(consumed, 2);
+    }
+
+    #[test]
+    fn parse_tokens_does_not_treat_trailing_fraction_as_mixed_number() {
+        // "3" followed by a token that isn't a fraction (a unit) should not
+        // be combined; only the whole number is consumed.
+        let (q, consumed) = Quantity::parse_tokens(&["3", "cups", "flour"]).unwrap();
+        assert_eq!(q, Quantity::whole(3));
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn parse_tokens_rejects_empty_input() {
+        assert!(Quantity::parse_tokens(&[]).is_err());
+    }
+
+    #[test]
+    fn parse_tokens_rejects_garbage() {
+        assert!(Quantity::parse_tokens(&["banana"]).is_err());
+    }
+
+    #[test]
+    fn parse_tokens_rejects_zero_denominator_fraction() {
+        assert!(Quantity::parse_tokens(&["1/0"]).is_err());
+    }
+
+    #[test]
+    fn display_whole_number() {
+        assert_eq!(Quantity::whole(3).to_string(), "3");
+    }
+
+    #[test]
+    fn display_fraction_only() {
+        assert_eq!(Quantity::new(1, 2).to_string(), "1/2");
+    }
+
+    #[test]
+    fn display_mixed_number() {
+        assert_eq!(Quantity::new(9, 4).to_string(), "2 1/4");
+    }
+
+    #[test]
+    fn display_zero() {
+        assert_eq!(Quantity::new(0, 5).to_string(), "0");
+    }
+}

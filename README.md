@@ -76,6 +76,8 @@ Standard library only, no dependencies to fetch:
 cargo build --release
 ```
 
+Run the test suite with `cargo test`.
+
 ## Status
 
 Early skeleton. Parsing is strict about the two-line metadata header and

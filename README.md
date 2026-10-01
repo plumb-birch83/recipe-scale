@@ -57,6 +57,18 @@ Or scale by an explicit multiplier instead of a target serving count:
 $ recipe-scale examples/pancakes.txt --factor 1/3
 ```
 
+Scaled quantities can get awkward (1/3 of 1 7/8 cups is 5/8 cup, but 1/7 of
+it is not something you can measure). `--round-to` snaps every quantity to the
+nearest multiple of a step, ties going up:
+
+```
+$ recipe-scale examples/pancakes.txt --factor 1/3 --round-to 1/8
+```
+
+The step is any positive fraction or decimal. A small quantity can round to
+0 if the step is coarse, so pick a step that suits the smallest measure in the
+recipe. It applies to `--json` output too.
+
 Add `--json` to either mode for machine-readable output:
 
 ```

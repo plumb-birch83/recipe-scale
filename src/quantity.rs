@@ -27,6 +27,18 @@ impl Quantity {
         Quantity::new(self.num * factor.num, self.den * factor.den)
     }
 
+    /// Rounds to the nearest multiple of `step` (which must be positive),
+    /// with ties going away from zero. Done in integers so 1/8 steps land
+    /// exactly on measuring-spoon fractions.
+    pub fn round_to(self, step: Quantity) -> Quantity {
+        assert!(step.num > 0, "rounding step must be positive");
+        let n = self.num * step.den;
+        let d = self.den * step.num;
+        let magnitude = (2 * n.abs() + d) / (2 * d);
+        let k = if n < 0 { -magnitude } else { magnitude };
+        Quantity::new(k * step.num, step.den)
+    }
+
     pub fn as_f64(self) -> f64 {
         self.num as f64 / self.den as f64
     }
@@ -153,6 +165,36 @@ mod tests {
         let down = start.scaled_by(Quantity::new(1, 7));
         let back = down.scaled_by(Quantity::new(7, 1));
         assert_eq!(back, start);
+    }
+
+    #[test]
+    fn round_to_nearest_eighth() {
+        // 5/16 is a tie between 2/8 and 3/8 and goes up.
+        assert_eq!(Quantity::new(5, 16).round_to(Quantity::new(1, 8)), Quantity::new(3, 8));
+        // 1/3 is closer to 3/8 than to 2/8.
+        assert_eq!(Quantity::new(1, 3).round_to(Quantity::new(1, 8)), Quantity::new(3, 8));
+    }
+
+    #[test]
+    fn round_to_keeps_exact_values() {
+        let q = Quantity::new(9, 4);
+        assert_eq!(q.round_to(Quantity::new(1, 8)), q);
+    }
+
+    #[test]
+    fn round_to_can_reach_zero() {
+        assert_eq!(Quantity::new(1, 20).round_to(Quantity::new(1, 4)), Quantity::whole(0));
+    }
+
+    #[test]
+    fn round_to_handles_negative_ties_away_from_zero() {
+        assert_eq!(Quantity::new(-5, 16).round_to(Quantity::new(1, 8)), Quantity::new(-3, 8));
+    }
+
+    #[test]
+    fn round_to_accepts_non_unit_step() {
+        // Nearest multiple of 1/2: 7/4 is a tie and rounds up to 2.
+        assert_eq!(Quantity::new(7, 4).round_to(Quantity::new(1, 2)), Quantity::whole(2));
     }
 
     #[test]

@@ -12,6 +12,7 @@ struct Options {
     target_servings: Option<u32>,
     factor: Option<Quantity>,
     json: bool,
+    round_to: Option<Quantity>,
 }
 
 fn main() -> ExitCode {
@@ -51,9 +52,9 @@ fn main() -> ExitCode {
     };
 
     if opts.json {
-        print_json(&recipe, factor);
+        print_json(&recipe, factor, opts.round_to);
     } else {
-        print_human(&recipe, factor);
+        print_human(&recipe, factor, opts.round_to);
     }
 
     ExitCode::SUCCESS
@@ -78,6 +79,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
     let mut target_servings = None;
     let mut factor = None;
     let mut json = false;
+    let mut round_to = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -97,6 +99,15 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
                 let (q, _) = Quantity::parse_tokens(&[val.as_str()])?;
                 factor = Some(q);
             }
+            "--round-to" => {
+                i += 1;
+                let val = args.get(i).ok_or("--round-to needs a value")?;
+                let (step, _) = Quantity::parse_tokens(&[val.as_str()])?;
+                if step.num <= 0 {
+                    return Err(format!("--round-to must be positive: {}", val));
+                }
+                round_to = Some(step);
+            }
             "-h" | "--help" => {
                 print_usage();
                 std::process::exit(0);
@@ -115,14 +126,25 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
         target_servings,
         factor,
         json,
+        round_to,
     })
 }
 
 fn print_usage() {
-    eprintln!("usage: recipe-scale <recipe-file> (--servings N | --factor X) [--json]");
+    eprintln!(
+        "usage: recipe-scale <recipe-file> (--servings N | --factor X) [--round-to STEP] [--json]"
+    );
 }
 
-fn print_human(recipe: &Recipe, factor: Quantity) {
+fn scaled_quantity(quantity: Quantity, factor: Quantity, round_to: Option<Quantity>) -> Quantity {
+    let scaled = quantity.scaled_by(factor);
+    match round_to {
+        Some(step) => scaled.round_to(step),
+        None => scaled,
+    }
+}
+
+fn print_human(recipe: &Recipe, factor: Quantity, round_to: Option<Quantity>) {
     let target = factor.as_f64() * recipe.base_servings as f64;
     println!(
         "{} (scaled from {} to {:.0} servings, x{:.3})",
@@ -133,7 +155,7 @@ fn print_human(recipe: &Recipe, factor: Quantity) {
     );
     println!();
     for ing in &recipe.ingredients {
-        let scaled = ing.quantity.scaled_by(factor);
+        let scaled = scaled_quantity(ing.quantity, factor, round_to);
         match &ing.unit {
             Some(unit) => println!("  {} {} {}", scaled, unit, ing.name),
             None => println!("  {} {}", scaled, ing.name),
@@ -141,7 +163,7 @@ fn print_human(recipe: &Recipe, factor: Quantity) {
     }
 }
 
-fn print_json(recipe: &Recipe, factor: Quantity) {
+fn print_json(recipe: &Recipe, factor: Quantity, round_to: Option<Quantity>) {
     let mut out = String::new();
     out.push('{');
     out.push_str(&format!("\"name\":{},", json_string(&recipe.name)));
@@ -152,7 +174,7 @@ fn print_json(recipe: &Recipe, factor: Quantity) {
         if idx > 0 {
             out.push(',');
         }
-        let scaled = ing.quantity.scaled_by(factor);
+        let scaled = scaled_quantity(ing.quantity, factor, round_to);
         out.push('{');
         out.push_str(&format!("\"quantity\":\"{}\",", scaled));
         out.push_str(&format!("\"quantity_decimal\":{:.4},", scaled.as_f64()));
